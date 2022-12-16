@@ -1,8 +1,12 @@
 //! Types related to task management
 use super::TaskContext;
-use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::config::{kernel_stack_position, TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
+use crate::timer::get_time_us;
+
+use alloc::vec;
+use alloc::vec::Vec;
 
 /// task control block structure
 pub struct TaskControlBlock {
@@ -11,6 +15,10 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+    // task info utilities
+    pub syscall_times: Vec<u32>,
+    first_scheduled: bool,
+    start_time: usize, // in us
 }
 
 impl TaskControlBlock {
@@ -41,6 +49,9 @@ impl TaskControlBlock {
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+            syscall_times: vec![0; MAX_SYSCALL_NUM],
+            first_scheduled: true,
+            start_time: usize::MAX,
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
@@ -52,6 +63,16 @@ impl TaskControlBlock {
             trap_handler as usize,
         );
         task_control_block
+    }
+    pub fn update_when_scheduled(&mut self) {
+        if self.first_scheduled {
+            self.first_scheduled = false;
+            self.start_time = get_time_us();
+        }
+    }
+    /// us
+    pub fn running_time(&self) -> usize {
+        get_time_us() - self.start_time
     }
 }
 

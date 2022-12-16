@@ -1,8 +1,12 @@
 //! Process management syscalls
 
 use crate::config::MAX_SYSCALL_NUM;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus};
+use crate::task::{
+    exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+    TaskInfo, current_task_info, current_user_token
+};
 use crate::timer::get_time_us;
+use crate::mm::translated_refmut;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -11,12 +15,12 @@ pub struct TimeVal {
     pub usec: usize,
 }
 
-#[derive(Clone, Copy)]
-pub struct TaskInfo {
-    pub status: TaskStatus,
-    pub syscall_times: [u32; MAX_SYSCALL_NUM],
-    pub time: usize,
-}
+// #[derive(Clone, Copy)]
+// pub struct TaskInfo {
+//     pub status: TaskStatus,
+//     pub syscall_times: [u32; MAX_SYSCALL_NUM],
+//     pub time: usize,
+// }
 
 pub fn sys_exit(exit_code: i32) -> ! {
     info!("[kernel] Application exited with code {}", exit_code);
@@ -31,8 +35,13 @@ pub fn sys_yield() -> isize {
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_get_time
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let _us = get_time_us();
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let us = get_time_us();
+    let time_val = translated_refmut(current_user_token(), ts);
+    *time_val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
     // unsafe {
     //     *ts = TimeVal {
     //         sec: us / 1_000_000,
@@ -58,5 +67,10 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let task_info = translated_refmut(current_user_token(), ti);
+    *task_info = current_task_info();
+    // unsafe {
+    //     *ti = current_task_info();
+    // }
+    0
 }
