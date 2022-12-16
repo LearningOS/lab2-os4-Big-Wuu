@@ -104,10 +104,12 @@ pub fn init_frame_allocator() {
         PhysAddr::from(ekernel as usize).ceil(),
         PhysAddr::from(MEMORY_END).floor(),
     );
+    trace!("init FRAME_ALLOCATOR, num_free_frames = {}", num_free_frames());
 }
 
 /// allocate a frame
 pub fn frame_alloc() -> Option<FrameTracker> {
+    trace!("frame_alloc");
     FRAME_ALLOCATOR
         .exclusive_access()
         .alloc()
