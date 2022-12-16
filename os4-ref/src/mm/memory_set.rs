@@ -49,8 +49,10 @@ impl MemorySet {
     }
     /// check if [start_va, end_va) is overlapped with this memory set
     pub fn is_overlapped(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
         self.areas.iter().any(|area| {
-            area.is_overlapped(start_va, end_va)
+            area.start_vpn() < end_vpn && area.end_vpn() > start_vpn
         })
     }
     /// Assume that no conflicts.
@@ -64,6 +66,26 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+    /// the area [start_va, end_va) must be exactly same
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        if let Some((idx, area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)|{
+                // exactly same
+                area.start_vpn() == start_vpn && area.end_vpn() == end_vpn
+            }) 
+        {
+            area.unmap(&mut self.page_table);
+            self.areas.remove(idx);
+            true
+        } else {
+            false
+        }
     }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
@@ -249,11 +271,11 @@ impl MapArea {
             map_perm,
         }
     }
-    /// check if [start_va, end_va) is overlapped with this memory area
-    pub fn is_overlapped(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
-        let start_vpn: VirtPageNum = start_va.floor();
-        let end_vpn: VirtPageNum = end_va.ceil();
-        self.vpn_range.is_overlapped(&VPNRange::new(start_vpn, end_vpn))
+    pub fn start_vpn(&self) -> VirtPageNum {
+        self.vpn_range.get_start()
+    }
+    pub fn end_vpn(&self) -> VirtPageNum {
+        self.vpn_range.get_end()
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;
@@ -270,7 +292,6 @@ impl MapArea {
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
     }
-    #[allow(unused)]
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         #[allow(clippy::single_match)]
         match self.map_type {
@@ -286,7 +307,6 @@ impl MapArea {
             self.map_one(page_table, vpn);
         }
     }
-    #[allow(unused)]
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.unmap_one(page_table, vpn);

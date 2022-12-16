@@ -228,3 +228,9 @@ pub fn current_mmap(start: usize, len: usize, port: usize) -> isize {
     let current = inner.current_task;
     inner.tasks[current].mmap(start, len, port)
 }
+
+pub fn current_munmap(start: usize, len: usize) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].munmap(start, len)
+}

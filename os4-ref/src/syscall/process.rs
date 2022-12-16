@@ -3,7 +3,7 @@
 use crate::config::MAX_SYSCALL_NUM;
 use crate::task::{
     exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-    TaskInfo, current_task_info, current_user_token, current_mmap
+    TaskInfo, current_task_info, current_user_token, current_mmap, current_munmap
 };
 use crate::timer::get_time_us;
 use crate::mm::{translated_refmut, VirtAddr, num_free_frames};
@@ -80,8 +80,14 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     current_mmap(start, len, port)
 }
 
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    // check validity as early as possible
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() {
+        // not aligned
+        return -1;
+    }
+    current_munmap(start, len)
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
