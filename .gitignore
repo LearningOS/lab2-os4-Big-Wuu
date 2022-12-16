@@ -1,6 +1,6 @@
 **/.*/*
 !.github/*
-!.cargo/*
+!os4/.cargo/*
 
 **/target
 **/Cargo.lock
