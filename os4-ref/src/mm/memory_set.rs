@@ -47,6 +47,12 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
+    /// check if [start_va, end_va) is overlapped with this memory set
+    pub fn is_overlapped(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        self.areas.iter().any(|area| {
+            area.is_overlapped(start_va, end_va)
+        })
+    }
     /// Assume that no conflicts.
     pub fn insert_framed_area(
         &mut self,
@@ -242,6 +248,12 @@ impl MapArea {
             map_type,
             map_perm,
         }
+    }
+    /// check if [start_va, end_va) is overlapped with this memory area
+    pub fn is_overlapped(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        self.vpn_range.is_overlapped(&VPNRange::new(start_vpn, end_vpn))
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;

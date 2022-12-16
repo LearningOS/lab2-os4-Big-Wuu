@@ -3,10 +3,10 @@
 use crate::config::MAX_SYSCALL_NUM;
 use crate::task::{
     exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-    TaskInfo, current_task_info, current_user_token
+    TaskInfo, current_task_info, current_user_token, current_mmap
 };
 use crate::timer::get_time_us;
-use crate::mm::translated_refmut;
+use crate::mm::{translated_refmut, VirtAddr, num_free_frames};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -57,8 +57,27 @@ pub fn sys_set_priority(_prio: isize) -> isize {
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    // check validity as early as possible
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() {
+        // not aligned
+        return -1;
+    }
+    if (port & !0x7) != 0 || (port & 0x7) == 0 {
+        // port should only use 3 bits
+        // and it shouldn't be 0 (meaningless)
+        return -1;
+    }
+    let end_va = VirtAddr::from(start + len);
+    let end_vpn_usize: usize = end_va.ceil().into();
+    let start_vpn_usize: usize = start_va.floor().into();
+    let num_required_frames = end_vpn_usize - start_vpn_usize;
+    if num_required_frames > num_free_frames() {
+        // free frames are not enough
+        return -1;
+    }
+    current_mmap(start, len, port)
 }
 
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {

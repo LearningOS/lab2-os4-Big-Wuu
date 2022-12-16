@@ -217,8 +217,14 @@ pub fn current_task_info() -> TaskInfo {
     task_info
 }
 
-pub fn update_syscall_times(syscall_id: usize) {
+pub fn update_current_syscall_times(syscall_id: usize) {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
     let current = inner.current_task;
     inner.tasks[current].syscall_times[syscall_id] += 1;
+}
+
+pub fn current_mmap(start: usize, len: usize, port: usize) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].mmap(start, len, port)
 }

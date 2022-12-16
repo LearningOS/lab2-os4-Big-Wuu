@@ -1,7 +1,7 @@
 //! Types related to task management
 use super::TaskContext;
 use crate::config::{kernel_stack_position, TRAP_CONTEXT, MAX_SYSCALL_NUM};
-use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, VirtPageNum, num_free_frames};
 use crate::trap::{trap_handler, TrapContext};
 use crate::timer::get_time_us;
 
@@ -73,6 +73,25 @@ impl TaskControlBlock {
     /// us
     pub fn running_time(&self) -> usize {
         get_time_us() - self.start_time
+    }
+    /// actually we can use Result to represent different types of errors
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
+        // check validity
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(start + len);
+        if self.memory_set.is_overlapped(start_va, end_va) {
+            // overlapped with current memory areas
+            return -1;
+        }
+        // map
+        let perm: u8 = ((port & 0x7) << 1) as u8;
+        let perm = MapPermission::from_bits(perm).unwrap();
+        self.memory_set.insert_framed_area(
+            start_va, 
+            end_va, 
+            perm | MapPermission::U
+        );
+        0
     }
 }
 
